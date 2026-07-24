@@ -48,6 +48,7 @@
   .answer.show { display: block; }
   .answer.err { color: #b02a37; }
 
+
   /* --- Живая лог-консоль ------------------------------------------------- */
   .con {
     margin-top: 16px; display: none; background: #0e1a14; border-radius: 12px;
@@ -88,7 +89,7 @@
   <div class="card">
     <header>
       <h1>⚽ AI Футбольный Ассистент</h1>
-      <p>Реальные данные · TheSportsDB &nbsp;|&nbsp; AI · Google Gemini</p>
+      <p>Реальные данные · TheSportsDB &nbsp;|&nbsp; AI · OpenRouter</p>
     </header>
     <div class="body">
       <div class="examples">
@@ -113,29 +114,35 @@
    ⚽ AI ФУТБОЛЬНЫЙ АССИСТЕНТ
    --------------------------------------------------------------------------
    Схема работы (видна в живом логе ниже):
-     Вопрос → [1] Gemini выбирает нужный запрос к API
+     Вопрос → [1] ИИ (OpenRouter) выбирает нужный запрос к API
             → [2] TheSportsDB отдаёт реальные футбольные данные (JSON)
-            → [3] Gemini анализирует данные и пишет ответ
+            → [3] ИИ анализирует данные и пишет ответ
    ========================================================================== */
 
 // --- Ключи и настройки ----------------------------------------------------
-// ⚠️ Ключ виден в исходнике страницы. Для домашки ок; потом лучше пересоздать.
-// Если ключ перестал работать — создай новый (AIza...) на
-// https://aistudio.google.com/app/apikey и вставь сюда.
-const GEMINI_API_KEY = "AQ.Ab8RN6Js7riROAKD2glMh2wmoaieweveaIcomkjBCvISEG9lKw";
+// AI-слой: OpenRouter (ключ постоянный, не истекает; работает из браузера).
+// ⚠️ Ключ виден в исходнике страницы — для учебной работы это нормально.
+// Свой ключ можно создать бесплатно: https://openrouter.ai/settings/keys
+const BUILTIN_AI_KEY = "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";
 const SPORTSDB_KEY   = "3";  // бесплатный тестовый ключ TheSportsDB
 
-// Список моделей Gemini для перебора: если у одной кончилась бесплатная квота
-// (HTTP 429) или она перегружена (HTTP 503) — ассистент пробует следующую.
-const GEMINI_MODELS = [
-  "gemini-flash-latest",
-  "gemini-flash-lite-latest",
-  "gemini-2.0-flash",
-  "gemini-2.0-flash-lite",
+// Свой ключ OpenRouter можно ввести прямо на странице — он сохранится в браузере
+// (localStorage) и будет использоваться вместо встроенного.
+function getAIKey() {
+  return (localStorage.getItem("openrouter_key") || "").trim() || BUILTIN_AI_KEY;
+}
+
+// Бесплатные модели OpenRouter для перебора: если одна перегружена или упёрлась
+// в лимит (HTTP 429) — ассистент автоматически пробует следующую.
+const AI_MODELS = [
+  "google/gemma-4-31b-it:free",
+  "openai/gpt-oss-20b:free",
+  "inclusionai/ling-3.0-flash:free",
+  "nvidia/nemotron-3-super-120b-a12b:free",
 ];
 
-const geminiUrl = m => `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`;
-const SDB_BASE  = `https://www.thesportsdb.com/api/v1/json/${SPORTSDB_KEY}`;
+const AI_URL   = "https://openrouter.ai/api/v1/chat/completions";
+const SDB_BASE = `https://www.thesportsdb.com/api/v1/json/${SPORTSDB_KEY}`;
 
 // Лиги TheSportsDB (id + человекочитаемое имя)
 const LEAGUES = {
@@ -188,19 +195,22 @@ function conJson(obj) {
 }
 
 // ==========================================================================
-// Вызов Gemini с перебором моделей при ошибке квоты/перегрузки
+// Вызов ИИ (OpenRouter) с перебором моделей при ошибке лимита/перегрузки
 // ==========================================================================
 async function callGemini(prompt, jsonMode, stepLabel) {
-  const body = { contents: [{ parts: [{ text: prompt }] }] };
-  if (jsonMode) body.generationConfig = { response_mime_type: "application/json" };
-
   let lastErr = "";
-  for (const model of GEMINI_MODELS) {
+  for (const model of AI_MODELS) {
+    const body = {
+      model,
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.3,
+      max_tokens: 800,
+    };
     let res, data;
     try {
-      res = await fetch(geminiUrl(model), {
+      res = await fetch(AI_URL, {
         method: "POST",
-        headers: { "x-goog-api-key": GEMINI_API_KEY, "Content-Type": "application/json" },
+        headers: { "Authorization": "Bearer " + getAIKey(), "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
       data = await res.json().catch(() => ({}));
@@ -210,8 +220,9 @@ async function callGemini(prompt, jsonMode, stepLabel) {
       continue;
     }
 
-    if (res.ok && data.candidates) {
-      const text = data.candidates[0].content.parts[0].text.trim();
+    const text = (data.choices && data.choices[0] && data.choices[0].message
+                  && data.choices[0].message.content || "").trim();
+    if (res.ok && text) {
       return { text, model, request: body, response: data };
     }
 
@@ -219,7 +230,7 @@ async function callGemini(prompt, jsonMode, stepLabel) {
     lastErr = `${model}: HTTP ${res.status} ${msg}`;
     con(`⚠ ${escapeHtml(lastErr)} — пробую другую модель…`, "warn");
   }
-  throw new Error(lastErr || "Gemini недоступен");
+  throw new Error(lastErr || "ИИ недоступен");
 }
 
 // --- Вызов TheSportsDB ----------------------------------------------------
@@ -263,6 +274,85 @@ async function routeQuestion(question) {
   try { plan = JSON.parse(r.text); }
   catch { plan = JSON.parse(r.text.slice(r.text.indexOf("{"), r.text.lastIndexOf("}") + 1)); }
   return { plan, model: r.model, response: r.response };
+}
+
+// ==========================================================================
+// ЗАПАСНОЙ РЕЖИМ (без ИИ): определяем запрос по ключевым словам
+// Нужен, если Gemini недоступен (истёк ключ, кончилась квота и т.п.)
+// ==========================================================================
+const TEAMS_RU_EN = {
+  "барселон": "Barcelona", "реал": "Real Madrid", "атлетико": "Atletico Madrid",
+  "ливерпул": "Liverpool", "манчестер юнайтед": "Manchester United",
+  "манчестер сити": "Manchester City", "арсенал": "Arsenal", "челси": "Chelsea",
+  "тоттенхэм": "Tottenham", "бавария": "Bayern Munich", "боруссия": "Borussia Dortmund",
+  "ювентус": "Juventus", "милан": "AC Milan", "интер": "Inter", "наполи": "Napoli",
+  "псж": "Paris SG", "аякс": "Ajax", "порту": "FC Porto", "бенфика": "Benfica",
+};
+const LEAGUES_RU = {
+  "4328": ["апл", "премьер", "англ"],
+  "4335": ["ла лига", "лалига", "испан"],
+  "4331": ["бундеслиг", "герман"],
+  "4332": ["серия", "итал"],
+  "4334": ["лига 1", "франц"],
+  "4337": ["эредивиз", "нидерланд", "голланд"],
+};
+
+function fallbackRoute(question) {
+  const q = question.toLowerCase();
+
+  // ищем команду по словарю
+  let team = "";
+  for (const [ru, en] of Object.entries(TEAMS_RU_EN)) {
+    if (q.includes(ru)) { team = en; break; }
+  }
+
+  // информация о клубе
+  if (/расскажи|о клубе|информац|инфо/.test(q) && team)
+    return { intent: "team_info", team };
+  // ближайшие матчи
+  if (/ближайш|следующ|расписан|когда играет|предстоящ/.test(q) && team)
+    return { intent: "next", team };
+  // последние результаты
+  if (/последн|результат|счёт|счет|как сыграл/.test(q) && team)
+    return { intent: "last", team };
+  // если команда есть, но непонятно что — показываем последние матчи
+  if (team) return { intent: "last", team };
+
+  // турнирная таблица
+  if (/табл|турнир|мест|очк|лидер/.test(q)) {
+    let league = "4328";
+    for (const [id, words] of Object.entries(LEAGUES_RU))
+      if (words.some(w => q.includes(w))) { league = id; break; }
+    return { intent: "table", league_id: league };
+  }
+
+  return { intent: "table", league_id: "4328" };
+}
+
+// Локальное форматирование данных, если ИИ недоступен
+function formatLocally(intent, label, data) {
+  if (intent === "table") {
+    const rows = data.map(t =>
+      `${t.intRank}. ${t.strTeam} — ${t.intPoints} очков ` +
+      `(и: ${t.intPlayed}, в: ${t.intWin}, н: ${t.intDraw}, п: ${t.intLoss})`);
+    return `📊 ${label}\n\n${rows.join("\n")}`;
+  }
+  if (intent === "team_info") {
+    return `ℹ️ ${data.name}\n\n` +
+      `🏆 Лига: ${data.league || "—"}\n🌍 Страна: ${data.country || "—"}\n` +
+      `📅 Основан: ${data.founded || "—"}\n🏟 Стадион: ${data.stadium || "—"}` +
+      (data.capacity ? ` (вместимость ${data.capacity})` : "") +
+      (data.website ? `\n🔗 Сайт: ${data.website}` : "");
+  }
+  // матчи
+  if (!data.length) return `⚽ ${label}\n\nМатчей не найдено.`;
+  const rows = data.map(e => {
+    const score = (e.homeScore !== null && e.homeScore !== undefined && e.homeScore !== "")
+      ? `  ${e.homeScore}:${e.awayScore}` : "";
+    return `📅 ${e.date || "—"}${e.time ? " " + e.time.slice(0, 5) : ""} — ${e.match}${score}` +
+           (e.league ? `\n   🏆 ${e.league}` : "");
+  });
+  return `⚽ ${label}\n\n${rows.join("\n")}`;
 }
 
 function describePlan(plan) {
@@ -368,14 +458,23 @@ async function ask() {
   send.disabled = true;
 
   try {
-    con("Система готова. Источник данных: TheSportsDB, модель: Google Gemini.", "ok");
+    con("Система готова. Источник данных: TheSportsDB, ИИ: OpenRouter (бесплатные модели).", "ok");
     con(`🎙 Вопрос принят: «${escapeHtml(question)}»`);
 
-    // ШАГ 1
-    con("🧠 Шаг 1 — Gemini решает, какой запрос к API нужен…");
-    const { plan, model, response } = await routeQuestion(question);
-    con(`🧠 Gemini (${model}) выбрал: ${plan.intent} — ${escapeHtml(describePlan(plan))}`, "ok");
-    conJson(response);
+    // ШАГ 1 — понимание вопроса (с запасным режимом без ИИ)
+    con("🧠 Шаг 1 — ИИ решает, какой запрос к API нужен…");
+    let plan, aiAvailable = true;
+    try {
+      const r = await routeQuestion(question);
+      plan = r.plan;
+      con(`🧠 ИИ (${r.model}) выбрал: ${plan.intent} — ${escapeHtml(describePlan(plan))}`, "ok");
+      conJson(r.response);
+    } catch (e) {
+      aiAvailable = false;
+      con(`⚠ ИИ недоступен — определяю запрос без него (по ключевым словам)…`, "warn");
+      plan = fallbackRoute(question);
+      con(`🔎 Определено без ИИ: ${plan.intent} — ${escapeHtml(describePlan(plan))}`, "warn");
+    }
 
     if (plan.intent === "unknown") {
       con("ℹ Вопрос не про футбол — данные не запрашиваю.", "warn");
@@ -393,11 +492,27 @@ async function ask() {
     con(`📦 Данные получены: «${escapeHtml(label)}» (записей: ${n}, сжаты для ИИ).`, "ok");
     conJson(data);
 
-    // ШАГ 3
-    con("🧠 Шаг 3 — Gemini анализирует данные и пишет ответ…");
-    const ans = await summarize(question, label, data);
-    con(`✅ Готово — ответ сформирован моделью ${ans.model}.`, "ok");
-    answerEl.textContent = ans.text;
+    // ШАГ 3 — ответ (через ИИ, а если он недоступен — форматируем сами)
+    let answerText;
+    if (aiAvailable) {
+      con("🧠 Шаг 3 — ИИ анализирует данные и пишет ответ…");
+      try {
+        const ans = await summarize(question, label, data);
+        con(`✅ Готово — ответ сформирован моделью ${ans.model}.`, "ok");
+        answerText = ans.text;
+      } catch (e) {
+        con("⚠ ИИ не ответил — показываю данные напрямую, без ИИ.", "warn");
+        answerText = formatLocally(plan.intent, label, data);
+      }
+    } else {
+      con("📋 Шаг 3 — ИИ недоступен, показываю полученные данные напрямую.", "warn");
+      answerText = formatLocally(plan.intent, label, data);
+    }
+    if (!aiAvailable) {
+      answerText += "\n\n⚠️ ИИ сейчас недоступен (возможно, закончился дневной лимит OpenRouter). " +
+        "Данные выше — реальные, получены из футбольного API. Попробуй позже.";
+    }
+    answerEl.textContent = answerText;
     answerEl.className = "answer show";
 
   } catch (e) {
