@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>⚽ AI Футбольный Ассистент</title>
+<title>⚽ AI Football Assistant</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -88,19 +88,19 @@
 <body>
   <div class="card">
     <header>
-      <h1>⚽ AI Футбольный Ассистент</h1>
-      <p>Реальные данные · TheSportsDB &nbsp;|&nbsp; AI · OpenRouter</p>
+      <h1>⚽ AI Football Assistant</h1>
+      <p>Real data · TheSportsDB &nbsp;|&nbsp; AI · OpenRouter</p>
     </header>
     <div class="body">
       <div class="examples">
-        <button class="chip">Покажи таблицу АПЛ</button>
-        <button class="chip">Ближайшие матчи Барселоны</button>
-        <button class="chip">Последние результаты Реал Мадрид</button>
-        <button class="chip">Расскажи о клубе Ливерпуль</button>
+        <button class="chip">Show the Premier League table</button>
+        <button class="chip">Barcelona's upcoming matches</button>
+        <button class="chip">Real Madrid's latest results</button>
+        <button class="chip">Tell me about Liverpool FC</button>
       </div>
       <div class="input-row">
-        <input id="q" type="text" placeholder="Задай вопрос про футбол..." autocomplete="off">
-        <button class="send" id="send">Спросить</button>
+        <input id="q" type="text" placeholder="Ask a football question..." autocomplete="off">
+        <button class="send" id="send">Ask</button>
       </div>
       <div class="spinner" id="spinner"></div>
       <div class="answer" id="answer"></div>
@@ -146,12 +146,12 @@ const SDB_BASE = `https://www.thesportsdb.com/api/v1/json/${SPORTSDB_KEY}`;
 
 // Лиги TheSportsDB (id + человекочитаемое имя)
 const LEAGUES = {
-  "4328": "English Premier League (Англия)",
-  "4335": "Spanish La Liga (Испания)",
-  "4331": "German Bundesliga (Германия)",
-  "4332": "Italian Serie A (Италия)",
-  "4334": "French Ligue 1 (Франция)",
-  "4337": "Dutch Eredivisie (Нидерланды)",
+  "4328": "English Premier League (England)",
+  "4335": "Spanish La Liga (Spain)",
+  "4331": "German Bundesliga (Germany)",
+  "4332": "Italian Serie A (Italy)",
+  "4334": "French Ligue 1 (France)",
+  "4337": "Dutch Eredivisie (Netherlands)",
 };
 
 // ==========================================================================
@@ -181,14 +181,14 @@ function conJson(obj) {
   const kb = (new TextEncoder().encode(str).length / 1024).toFixed(1);
   const d = document.createElement("div");
   d.className = "ln";
-  const shown = str.length > 8000 ? str.slice(0, 8000) + "\n… (обрезано)" : str;
-  d.innerHTML = `<span class="jtoggle">показать JSON (${kb} КБ)</span>` +
+  const shown = str.length > 8000 ? str.slice(0, 8000) + "\n… (truncated)" : str;
+  d.innerHTML = `<span class="jtoggle">show JSON (${kb} KB)</span>` +
                 `<pre class="jbox">${escapeHtml(shown)}</pre>`;
   const box = d.querySelector(".jbox"), tog = d.querySelector(".jtoggle");
   tog.addEventListener("click", () => {
     box.classList.toggle("show");
     tog.textContent = box.classList.contains("show")
-      ? `скрыть JSON (${kb} КБ)` : `показать JSON (${kb} КБ)`;
+      ? `hide JSON (${kb} KB)` : `show JSON (${kb} KB)`;
   });
   conEl.appendChild(d);
   conEl.scrollTop = conEl.scrollHeight;
@@ -215,8 +215,8 @@ async function callGemini(prompt, jsonMode, stepLabel) {
       });
       data = await res.json().catch(() => ({}));
     } catch (e) {
-      lastErr = `${model}: сеть недоступна`;
-      con(`⚠ ${escapeHtml(lastErr)} — пробую другую модель…`, "warn");
+      lastErr = `${model}: network unavailable`;
+      con(`⚠ ${escapeHtml(lastErr)} — trying another model…`, "warn");
       continue;
     }
 
@@ -228,9 +228,9 @@ async function callGemini(prompt, jsonMode, stepLabel) {
 
     const msg = (data.error && data.error.message) || ("HTTP " + res.status);
     lastErr = `${model}: HTTP ${res.status} ${msg}`;
-    con(`⚠ ${escapeHtml(lastErr)} — пробую другую модель…`, "warn");
+    con(`⚠ ${escapeHtml(lastErr)} — trying another model…`, "warn");
   }
-  throw new Error(lastErr || "ИИ недоступен");
+  throw new Error(lastErr || "AI unavailable");
 }
 
 // --- Вызов TheSportsDB ----------------------------------------------------
@@ -239,7 +239,7 @@ async function sdb(path) {
   con(`↳ GET ${escapeHtml(url)}`);
   const res = await fetch(url);
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error("TheSportsDB вернул ошибку " + res.status);
+  if (!res.ok) throw new Error("TheSportsDB returned error " + res.status);
   return data;
 }
 
@@ -247,27 +247,27 @@ async function sdb(path) {
 // ШАГ 1. Gemini понимает вопрос и выбирает нужный запрос (роутер → JSON)
 // ==========================================================================
 async function routeQuestion(question) {
-  const prompt = `Ты — маршрутизатор запросов к футбольному API TheSportsDB.
-По вопросу пользователя верни СТРОГО JSON.
+  const prompt = `You are a request router for the TheSportsDB football API.
+Given the user's question, return STRICT JSON only.
 
-Возможные intent:
-- "table"     — турнирная таблица лиги
-- "next"      — ближайшие (будущие) матчи команды
-- "last"      — последние (сыгранные) матчи команды
-- "team_info" — общая информация о клубе
-- "unknown"   — вопрос не про футбол
+Possible intents:
+- "table"     — league standings table
+- "next"      — a team's upcoming (future) matches
+- "last"      — a team's latest (played) matches
+- "team_info" — general information about a club
+- "unknown"   — the question is not about football
 
-Лиги (league_id): ${JSON.stringify(LEAGUES)}
+Leagues (league_id): ${JSON.stringify(LEAGUES)}
 
-Правила:
-- Для "table": укажи league_id (по умолчанию "4328").
-- Для "next"/"last"/"team_info": укажи "team" — АНГЛИЙСКОЕ официальное название клуба
-  (например: "Барселона"→"Barcelona", "Реал Мадрид"→"Real Madrid", "Ливерпуль"→"Liverpool").
-- Верни ТОЛЬКО JSON, без пояснений.
+Rules:
+- For "table": provide league_id (default "4328").
+- For "next"/"last"/"team_info": provide "team" — the club's official ENGLISH name
+  (e.g. "Барселона"→"Barcelona", "Реал Мадрид"→"Real Madrid", "Ливерпуль"→"Liverpool").
+- Return ONLY JSON, no explanations.
 
-Формат: {"intent":"...", "league_id":"4328", "team":"Barcelona"}
+Format: {"intent":"...", "league_id":"4328", "team":"Barcelona"}
 
-Вопрос: "${question}"`;
+Question: "${question}"`;
 
   const r = await callGemini(prompt, true, "роутер");
   let plan;
@@ -280,48 +280,62 @@ async function routeQuestion(question) {
 // ЗАПАСНОЙ РЕЖИМ (без ИИ): определяем запрос по ключевым словам
 // Нужен, если Gemini недоступен (истёк ключ, кончилась квота и т.п.)
 // ==========================================================================
-const TEAMS_RU_EN = {
-  "барселон": "Barcelona", "реал": "Real Madrid", "атлетико": "Atletico Madrid",
-  "ливерпул": "Liverpool", "манчестер юнайтед": "Manchester United",
-  "манчестер сити": "Manchester City", "арсенал": "Arsenal", "челси": "Chelsea",
-  "тоттенхэм": "Tottenham", "бавария": "Bayern Munich", "боруссия": "Borussia Dortmund",
-  "ювентус": "Juventus", "милан": "AC Milan", "интер": "Inter", "наполи": "Napoli",
-  "псж": "Paris SG", "аякс": "Ajax", "порту": "FC Porto", "бенфика": "Benfica",
+// Keywords in both English and Russian → official English team name
+const TEAMS_KW = {
+  "barcelona": "Barcelona", "барселон": "Barcelona",
+  "real madrid": "Real Madrid", "реал": "Real Madrid",
+  "atletico": "Atletico Madrid", "атлетико": "Atletico Madrid",
+  "liverpool": "Liverpool", "ливерпул": "Liverpool",
+  "manchester united": "Manchester United", "манчестер юнайтед": "Manchester United",
+  "manchester city": "Manchester City", "манчестер сити": "Manchester City",
+  "arsenal": "Arsenal", "арсенал": "Arsenal",
+  "chelsea": "Chelsea", "челси": "Chelsea",
+  "tottenham": "Tottenham", "тоттенхэм": "Tottenham",
+  "bayern": "Bayern Munich", "бавария": "Bayern Munich",
+  "dortmund": "Borussia Dortmund", "боруссия": "Borussia Dortmund",
+  "juventus": "Juventus", "ювентус": "Juventus",
+  "milan": "AC Milan", "милан": "AC Milan",
+  "inter": "Inter", "интер": "Inter",
+  "napoli": "Napoli", "наполи": "Napoli",
+  "psg": "Paris SG", "псж": "Paris SG",
+  "ajax": "Ajax", "аякс": "Ajax",
+  "porto": "FC Porto", "порту": "FC Porto",
+  "benfica": "Benfica", "бенфика": "Benfica",
 };
-const LEAGUES_RU = {
-  "4328": ["апл", "премьер", "англ"],
-  "4335": ["ла лига", "лалига", "испан"],
-  "4331": ["бундеслиг", "герман"],
-  "4332": ["серия", "итал"],
-  "4334": ["лига 1", "франц"],
-  "4337": ["эредивиз", "нидерланд", "голланд"],
+const LEAGUES_KW = {
+  "4328": ["premier", "epl", "england", "апл", "премьер", "англ"],
+  "4335": ["la liga", "laliga", "spain", "ла лига", "лалига", "испан"],
+  "4331": ["bundesliga", "germany", "бундеслиг", "герман"],
+  "4332": ["serie a", "italy", "серия", "итал"],
+  "4334": ["ligue 1", "france", "лига 1", "франц"],
+  "4337": ["eredivisie", "netherlands", "dutch", "эредивиз", "нидерланд", "голланд"],
 };
 
 function fallbackRoute(question) {
   const q = question.toLowerCase();
 
-  // ищем команду по словарю
+  // find a team by keyword (English or Russian)
   let team = "";
-  for (const [ru, en] of Object.entries(TEAMS_RU_EN)) {
-    if (q.includes(ru)) { team = en; break; }
+  for (const [kw, en] of Object.entries(TEAMS_KW)) {
+    if (q.includes(kw)) { team = en; break; }
   }
 
-  // информация о клубе
-  if (/расскажи|о клубе|информац|инфо/.test(q) && team)
+  // club information
+  if (/tell me|about|info|расскажи|о клубе|информац|инфо/.test(q) && team)
     return { intent: "team_info", team };
-  // ближайшие матчи
-  if (/ближайш|следующ|расписан|когда играет|предстоящ/.test(q) && team)
+  // upcoming matches
+  if (/upcoming|next|fixture|schedule|ближайш|следующ|расписан|когда играет|предстоящ/.test(q) && team)
     return { intent: "next", team };
-  // последние результаты
-  if (/последн|результат|счёт|счет|как сыграл/.test(q) && team)
+  // latest results
+  if (/last|latest|result|score|ago|последн|результат|счёт|счет|как сыграл/.test(q) && team)
     return { intent: "last", team };
-  // если команда есть, но непонятно что — показываем последние матчи
+  // a team is named but intent is unclear — show latest matches
   if (team) return { intent: "last", team };
 
-  // турнирная таблица
-  if (/табл|турнир|мест|очк|лидер/.test(q)) {
+  // league table
+  if (/table|standing|rank|point|leader|табл|турнир|мест|очк|лидер/.test(q)) {
     let league = "4328";
-    for (const [id, words] of Object.entries(LEAGUES_RU))
+    for (const [id, words] of Object.entries(LEAGUES_KW))
       if (words.some(w => q.includes(w))) { league = id; break; }
     return { intent: "table", league_id: league };
   }
@@ -333,19 +347,19 @@ function fallbackRoute(question) {
 function formatLocally(intent, label, data) {
   if (intent === "table") {
     const rows = data.map(t =>
-      `${t.intRank}. ${t.strTeam} — ${t.intPoints} очков ` +
-      `(и: ${t.intPlayed}, в: ${t.intWin}, н: ${t.intDraw}, п: ${t.intLoss})`);
+      `${t.intRank}. ${t.strTeam} — ${t.intPoints} pts ` +
+      `(P: ${t.intPlayed}, W: ${t.intWin}, D: ${t.intDraw}, L: ${t.intLoss})`);
     return `📊 ${label}\n\n${rows.join("\n")}`;
   }
   if (intent === "team_info") {
     return `ℹ️ ${data.name}\n\n` +
-      `🏆 Лига: ${data.league || "—"}\n🌍 Страна: ${data.country || "—"}\n` +
-      `📅 Основан: ${data.founded || "—"}\n🏟 Стадион: ${data.stadium || "—"}` +
-      (data.capacity ? ` (вместимость ${data.capacity})` : "") +
-      (data.website ? `\n🔗 Сайт: ${data.website}` : "");
+      `🏆 League: ${data.league || "—"}\n🌍 Country: ${data.country || "—"}\n` +
+      `📅 Founded: ${data.founded || "—"}\n🏟 Stadium: ${data.stadium || "—"}` +
+      (data.capacity ? ` (capacity ${data.capacity})` : "") +
+      (data.website ? `\n🔗 Website: ${data.website}` : "");
   }
-  // матчи
-  if (!data.length) return `⚽ ${label}\n\nМатчей не найдено.`;
+  // matches
+  if (!data.length) return `⚽ ${label}\n\nNo matches found.`;
   const rows = data.map(e => {
     const score = (e.homeScore !== null && e.homeScore !== undefined && e.homeScore !== "")
       ? `  ${e.homeScore}:${e.awayScore}` : "";
@@ -358,11 +372,11 @@ function formatLocally(intent, label, data) {
 function describePlan(plan) {
   const t = plan.team || "";
   switch (plan.intent) {
-    case "table":     return `Запрос таблицы лиги ${LEAGUES[plan.league_id || "4328"] || plan.league_id}`;
-    case "next":      return `Ближайшие матчи команды: ${t}`;
-    case "last":      return `Последние матчи команды: ${t}`;
-    case "team_info": return `Информация о клубе: ${t}`;
-    default:          return "Вопрос не относится к футболу";
+    case "table":     return `League table request: ${LEAGUES[plan.league_id || "4328"] || plan.league_id}`;
+    case "next":      return `Upcoming matches: ${t}`;
+    case "last":      return `Latest matches: ${t}`;
+    case "team_info": return `Club information: ${t}`;
+    default:          return "Not a football question";
   }
 }
 
@@ -378,22 +392,22 @@ async function fetchData(plan) {
     for (const season of ["2025-2026", "2024-2025", "2023-2024"]) {
       const data = await sdb(`/lookuptable.php?l=${leagueId}&s=${season}`);
       if (data.table && data.table.length) {
-        return { label: `Турнирная таблица (топ-${data.table.length}) · ${leagueName} · сезон ${season}`,
+        return { label: `League table (top ${data.table.length}) · ${leagueName} · season ${season}`,
                  data: data.table.slice(0, 20) };
       }
     }
-    throw new Error("Таблица для этой лиги не найдена.");
+    throw new Error("No table found for this league.");
   }
 
   if (intent === "next" || intent === "last" || intent === "team_info") {
     const team = plan.team || "";
-    if (!team) throw new Error("Не удалось определить команду в вопросе.");
+    if (!team) throw new Error("Could not identify a team in the question.");
     const found = await sdb(`/searchteams.php?t=${encodeURIComponent(team)}`);
-    if (!found.teams || !found.teams.length) throw new Error(`Команда «${team}» не найдена.`);
+    if (!found.teams || !found.teams.length) throw new Error(`Team "${team}" not found.`);
     const tm = found.teams[0];
 
     if (intent === "team_info") {
-      return { label: `Информация о клубе · ${tm.strTeam}`, data: {
+      return { label: `Club information · ${tm.strTeam}`, data: {
         name: tm.strTeam, country: tm.strCountry, league: tm.strLeague,
         founded: tm.intFormedYear, stadium: tm.strStadium,
         capacity: tm.intStadiumCapacity, location: tm.strLocation,
@@ -407,7 +421,7 @@ async function fetchData(plan) {
       match: e.strEvent, date: e.dateEvent, time: e.strTime,
       league: e.strLeague, homeScore: e.intHomeScore, awayScore: e.intAwayScore,
     }));
-    const word = intent === "next" ? "Ближайшие матчи" : "Последние результаты";
+    const word = intent === "next" ? "Upcoming matches" : "Latest results";
     return { label: `${word} · ${tm.strTeam}`, data: events };
   }
 
@@ -418,16 +432,16 @@ async function fetchData(plan) {
 // ШАГ 3. Gemini анализирует данные и пишет ответ
 // ==========================================================================
 async function summarize(question, label, data) {
-  const prompt = `Ты — дружелюбный футбольный ассистент.
-Пользователь спросил: "${question}"
+  const prompt = `You are a friendly football assistant.
+The user asked: "${question}"
 
-Ниже реальные данные из TheSportsDB (JSON). Раздел: ${label}.
-Ответь на русском кратко, понятно и по делу, с эмодзи где уместно.
-Приводи конкретные названия, счёт, очки и даты ИЗ данных. Ничего не выдумывай.
-Если это таблица — покажи топ команд с очками (столбец intPoints).
-Если матчи — соперники, дата и счёт (если он есть).
+Below is real data from TheSportsDB (JSON). Section: ${label}.
+Reply in the SAME language as the user's question, briefly and clearly, with emojis where fitting.
+Use concrete names, scores, points and dates FROM the data. Do not invent anything.
+If it is a table — show the top teams with their points (intPoints column).
+If it is matches — opponents, date and score (if present).
 
-ДАННЫЕ:
+DATA:
 ${JSON.stringify(data).slice(0, 12000)}`;
   return callGemini(prompt, false, "суммаризация");
 }
@@ -458,65 +472,65 @@ async function ask() {
   send.disabled = true;
 
   try {
-    con("Система готова. Источник данных: TheSportsDB, ИИ: OpenRouter (бесплатные модели).", "ok");
-    con(`🎙 Вопрос принят: «${escapeHtml(question)}»`);
+    con("Ready. Data source: TheSportsDB, AI: OpenRouter (free models).", "ok");
+    con(`🎙 Question received: «${escapeHtml(question)}»`);
 
-    // ШАГ 1 — понимание вопроса (с запасным режимом без ИИ)
-    con("🧠 Шаг 1 — ИИ решает, какой запрос к API нужен…");
+    // STEP 1 — understand the question (with an AI-free fallback)
+    con("🧠 Step 1 — AI decides which API request is needed…");
     let plan, aiAvailable = true;
     try {
       const r = await routeQuestion(question);
       plan = r.plan;
-      con(`🧠 ИИ (${r.model}) выбрал: ${plan.intent} — ${escapeHtml(describePlan(plan))}`, "ok");
+      con(`🧠 AI (${r.model}) chose: ${plan.intent} — ${escapeHtml(describePlan(plan))}`, "ok");
       conJson(r.response);
     } catch (e) {
       aiAvailable = false;
-      con(`⚠ ИИ недоступен — определяю запрос без него (по ключевым словам)…`, "warn");
+      con(`⚠ AI unavailable — routing without it (by keywords)…`, "warn");
       plan = fallbackRoute(question);
-      con(`🔎 Определено без ИИ: ${plan.intent} — ${escapeHtml(describePlan(plan))}`, "warn");
+      con(`🔎 Determined without AI: ${plan.intent} — ${escapeHtml(describePlan(plan))}`, "warn");
     }
 
     if (plan.intent === "unknown") {
-      con("ℹ Вопрос не про футбол — данные не запрашиваю.", "warn");
-      answerEl.textContent = "Я отвечаю только на вопросы про футбол ⚽ " +
-        "(таблицы лиг, матчи команд, инфо о клубах). Например: «Покажи таблицу АПЛ» " +
-        "или «Ближайшие матчи Барселоны».";
+      con("ℹ Not a football question — no data request.", "warn");
+      answerEl.textContent = "I only answer football questions ⚽ " +
+        "(league tables, team matches, club info). For example: “Show the Premier League table” " +
+        "or “Barcelona's upcoming matches”.";
       answerEl.className = "answer show";
       return;
     }
 
-    // ШАГ 2
-    con(`📡 Шаг 2 — запрос реальных данных из футбольного API…`);
+    // STEP 2
+    con(`📡 Step 2 — fetching real data from the football API…`);
     const { label, data } = await fetchData(plan);
     const n = Array.isArray(data) ? data.length : 1;
-    con(`📦 Данные получены: «${escapeHtml(label)}» (записей: ${n}, сжаты для ИИ).`, "ok");
+    con(`📦 Data received: «${escapeHtml(label)}» (records: ${n}, compacted for AI).`, "ok");
     conJson(data);
 
-    // ШАГ 3 — ответ (через ИИ, а если он недоступен — форматируем сами)
+    // STEP 3 — answer (via AI, or format it ourselves if AI is unavailable)
     let answerText;
     if (aiAvailable) {
-      con("🧠 Шаг 3 — ИИ анализирует данные и пишет ответ…");
+      con("🧠 Step 3 — AI analyses the data and writes the answer…");
       try {
         const ans = await summarize(question, label, data);
-        con(`✅ Готово — ответ сформирован моделью ${ans.model}.`, "ok");
+        con(`✅ Done — answer produced by ${ans.model}.`, "ok");
         answerText = ans.text;
       } catch (e) {
-        con("⚠ ИИ не ответил — показываю данные напрямую, без ИИ.", "warn");
+        con("⚠ AI did not respond — showing the data directly, without AI.", "warn");
         answerText = formatLocally(plan.intent, label, data);
       }
     } else {
-      con("📋 Шаг 3 — ИИ недоступен, показываю полученные данные напрямую.", "warn");
+      con("📋 Step 3 — AI unavailable, showing the fetched data directly.", "warn");
       answerText = formatLocally(plan.intent, label, data);
     }
     if (!aiAvailable) {
-      answerText += "\n\n⚠️ ИИ сейчас недоступен (возможно, закончился дневной лимит OpenRouter). " +
-        "Данные выше — реальные, получены из футбольного API. Попробуй позже.";
+      answerText += "\n\n⚠️ AI is currently unavailable (the OpenRouter daily limit may be reached). " +
+        "The data above is real, fetched from the football API. Please try again later.";
     }
     answerEl.textContent = answerText;
     answerEl.className = "answer show";
 
   } catch (e) {
-    con(`⛔ Ошибка: ${escapeHtml(e.message)}`, "err2");
+    con(`⛔ Error: ${escapeHtml(e.message)}`, "err2");
     answerEl.innerHTML = "⚠️ " + escapeHtml(e.message);
     answerEl.className = "answer err show";
   } finally {
