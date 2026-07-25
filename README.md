@@ -1,89 +1,88 @@
 # ⚽ AI Football Assistant — Homework 1
 
-Простой AI-ассистент, который принимает вопрос про футбол, получает **реальные данные из интернета** и возвращает понятный ответ. Всё в одном файле `index.html` — интерфейс и логика на чистом JavaScript, без отдельного бэкенда.
+A simple AI assistant that takes a football question, fetches **real data from the internet**, and returns a clear answer. Everything lives in a single `index.html` file — the interface and all the logic run in plain JavaScript in the browser, with no backend.
 
-🔗 **Демо:** открой `index.html` двойным кликом — всё работает сразу.
-
----
-
-## 🚀 Запуск
-
-1. Открой `index.html` в браузере (двойной клик по файлу).
-2. Задай вопрос или нажми один из готовых примеров.
-
-Всё уже встроено в файл — ключ ИИ и фоновое изображение. Ничего доустанавливать не нужно.
-
-Примеры вопросов:
-- «Покажи таблицу АПЛ»
-- «Ближайшие матчи Барселоны»
-- «Последние результаты Реал Мадрид»
-- «Расскажи о клубе Ливерпуль»
+🔗 **Demo:** open `index.html` (double-click) — it works out of the box.
 
 ---
 
-## 📄 Краткое описание (для сдачи)
+## 🚀 How to run
 
-**Какой инструмент я использовал?**
-Ассистент написан как одна веб-страница `index.html` на чистом **JavaScript** —
-и интерфейс, и вся логика работают прямо в браузере, отдельный сервер не нужен.
-В качестве AI-слоя используется **OpenRouter** — сервис, который даёт единый доступ
-к множеству языковых моделей, в том числе **бесплатным**. Ключ OpenRouter постоянный
-(не истекает) и работает прямо из браузера.
+1. Open `index.html` in a browser (double-click the file).
+2. Type a question or click one of the example buttons.
 
-**Какой API / источник данных?**
-Реальные футбольные данные берутся из **TheSportsDB** — бесплатного публичного API,
-который работает прямо из браузера (CORS разрешён, регистрация не нужна,
-используется общий тестовый ключ `3`). Данные: турнирные таблицы лиг, ближайшие и
-прошедшие матчи команд, информация о клубах.
+Everything is already embedded in the file — the AI key and the background image. Nothing to install.
 
-**Как работает ассистент?**
-Ассистент работает в три шага (все шаги видны в живом логе на странице):
+Example questions:
+- "Show the Premier League table"
+- "Barcelona's upcoming matches"
+- "Real Madrid's latest results"
+- "Tell me about Liverpool FC"
 
-1. **Понимание вопроса (AI).** Пользователь пишет вопрос на естественном языке.
-   ИИ (через OpenRouter) выступает «маршрутизатором»: возвращает строгий JSON — какой
-   тип данных нужен (`table` / `next` / `last` / `team_info`), какую лигу выбрать и как
-   называется команда по-английски (например «Барселоны» → `Barcelona`).
-
-2. **Получение реальных данных.** По этому плану JS делает `fetch`-запрос к нужному
-   endpoint TheSportsDB и получает свежий JSON с реальными результатами.
-
-3. **Суммаризация (AI).** ИИ получает этот JSON и превращает его в короткий,
-   понятный ответ на русском с конкретными цифрами и названиями — ничего не выдумывая.
-
-```
-Вопрос → [ИИ выбирает запрос] → [TheSportsDB отдаёт данные] → [ИИ суммирует] → Ответ
-```
-
-**Живой лог на странице.** Под ответом показывается пошаговая консоль с таймстампами:
-какую модель выбрал ИИ, какие запросы ушли к API, и кнопка **«показать JSON»** —
-по каждому вызову можно развернуть сырой JSON запроса и ответа (и к ИИ, и к
-футбольному API). Это наглядно показывает, как ассистент получает и обрабатывает данные.
+The assistant replies in the same language you ask in (English or Russian).
 
 ---
 
-## 🗂️ Структура
+## 📄 Short description (for submission)
+
+**Which tool did I use?**
+The assistant is a single-page web application (`index.html`) written in plain **JavaScript** —
+both the interface and all the logic run directly in the browser, with no separate server.
+As the AI layer I use **OpenRouter**, a service that gives unified access to many language
+models, including free ones. The OpenRouter key is permanent (it does not expire) and works
+directly from the browser.
+
+**Which API or data source did I use?**
+Real football data comes from **TheSportsDB** — a free public REST API that works directly
+from the browser (CORS enabled, no registration, shared test key `3`). It provides league
+tables, upcoming and past matches, and club information.
+
+**How does the assistant work?**
+It runs a three-step pipeline, all visible in a live log on the page:
+
+1. **Understand (AI).** The user writes a question in natural language. The AI (via OpenRouter)
+   acts as a router and returns strict JSON — which data is needed (`table` / `next` / `last` /
+   `team_info`), which league, and the club's English name (e.g. «Барселоны» → `Barcelona`).
+
+2. **Fetch.** Based on that plan, JavaScript sends a `fetch` request to the right TheSportsDB
+   endpoint and receives fresh JSON with real results.
+
+3. **Explain (AI).** The AI turns that JSON into a short, clear answer in the same language the
+   question was asked in, quoting concrete figures and names — without inventing anything.
 
 ```
-index.html   # всё: веб-интерфейс + логика на JS (3 шага) + ключ OpenRouter + вшитый фон
-bg.png       # исходник фонового изображения (в самой странице фон уже встроен)
-README.md    # инструкция и описание для сдачи
+Question → [AI picks the request] → [TheSportsDB returns data] → [AI summarizes] → Answer
 ```
 
-## 🛠️ Технические детали
-- **AI через OpenRouter.** Запрос: `POST https://openrouter.ai/api/v1/chat/completions`,
-  авторизация заголовком `Authorization: Bearer <ключ>`. Используются бесплатные модели
-  (с суффиксом `:free`), например `google/gemma-4-31b-it:free`, `openai/gpt-oss-20b:free`.
-- **Автоперебор моделей.** Если одна модель перегружена или упёрлась в лимит (`HTTP 429`),
-  ассистент автоматически пробует следующую из списка — так ответ приходит даже при нагрузке.
-- **Запасной режим без ИИ.** Если ИИ совсем недоступен, ассистент всё равно сходит в
-  футбольный API и покажет реальные данные (таблицу/матчи), просто отформатирует их сам,
-  а не через ИИ — без «стены ошибок».
-- **Фон встроен в `index.html`** (data-URI), поэтому страница самодостаточна:
-  достаточно одного файла, чтобы всё работало, включая фон.
+**Live log on the page.** Below the answer, a timestamped console shows which model the AI chose,
+which requests went to the API, and a **"show JSON"** toggle that reveals the raw request/response
+JSON for every call (both the AI and the football API). This makes it visible how the assistant
+receives and processes the data.
 
-## ⚠️ Заметки
-- Ключ OpenRouter виден в исходном коде страницы — для учебной работы это нормально,
-  но в реальном проекте ключ нельзя хранить в клиентском коде.
-- Бесплатный ключ TheSportsDB отдаёт таблицу в урезанном виде (топ-5 команд).
-- У бесплатного OpenRouter есть дневной лимит запросов (~50/день); при исчерпании —
-  сработает запасной режим (данные без ИИ), а лимит сбрасывается на следующий день.
+---
+
+## 🗂️ Structure
+
+```
+index.html   # everything: UI + logic (3 steps) + OpenRouter key + embedded background
+bg.png       # source of the background image (already embedded inside the page)
+README.md    # instructions and description for submission
+```
+
+## 🛠️ Technical details
+- **AI via OpenRouter.** Request: `POST https://openrouter.ai/api/v1/chat/completions`,
+  auth header `Authorization: Bearer <key>`. Uses free models (with the `:free` suffix),
+  e.g. `google/gemma-4-31b-it:free`, `openai/gpt-oss-20b:free`.
+- **Model fallback.** If one model is overloaded or rate-limited (`HTTP 429`), the assistant
+  automatically tries the next one in the list, so an answer still comes through under load.
+- **AI-free fallback.** If the AI is completely unavailable, the assistant still fetches the
+  real football data and formats it directly — no "wall of errors".
+- **Background embedded in `index.html`** (data-URI), so the page is self-contained: a single
+  file is enough for everything to work, background included.
+
+## ⚠️ Notes
+- The OpenRouter key is visible in the page source — fine for a homework, but in a real project
+  a key must not be stored in client-side code.
+- TheSportsDB's free key returns a shortened table (top 5 teams).
+- OpenRouter's free tier has a daily request limit (~50/day); when it runs out, the AI-free
+  fallback kicks in, and the limit resets the next day.
